@@ -1,21 +1,3 @@
-//! # [Ratatui] Popup example
-//!
-//! The latest version of this example is available in the [examples] folder in the repository.
-//!
-//! Please note that the examples are designed to be run against the `main` branch of the Github
-//! repository. This means that you may not be able to compile with the latest release version on
-//! crates.io, or the one that you have installed locally.
-//!
-//! See the [examples readme] for more information on finding examples that match the version of the
-//! library you are using.
-//!
-//! [Ratatui]: https://github.com/ratatui/ratatui
-//! [examples]: https://github.com/ratatui/ratatui/blob/main/examples
-//! [examples readme]: https://github.com/ratatui/ratatui/blob/main/examples/README.md
-
-// See also https://github.com/joshka/tui-popup and
-// https://github.com/sephiroth74/tui-confirm-dialog
-
 use color_eyre::Result;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
@@ -42,6 +24,8 @@ struct App {
     input: String,
     cursor_position: usize,
     results: String,
+    find_directories: bool,
+    waiting_for_d: bool,
 }
 
 impl App {
@@ -74,8 +58,20 @@ impl App {
                             if space_pressed && !self.show_popup && !self.show_grep_popup {
                                 self.show_popup = true;
                                 self.show_grep_popup = false;
+                                self.find_directories = false;
+                                self.waiting_for_d = true;
                             } else if self.show_popup || self.show_grep_popup {
                                 self.input.push('f');
+                                self.cursor_position += 1;
+                            }
+                            space_pressed = false;
+                        }
+                        KeyCode::Char('d') => {
+                            if self.waiting_for_d {
+                                self.find_directories = true;
+                                self.waiting_for_d = false;
+                            } else if self.show_popup || self.show_grep_popup {
+                                self.input.push('d');
                                 self.cursor_position += 1;
                             }
                             space_pressed = false;
@@ -84,6 +80,8 @@ impl App {
                             if space_pressed && !self.show_popup && !self.show_grep_popup {
                                 self.show_grep_popup = true;
                                 self.show_popup = false;
+                                self.find_directories = false;
+                                self.waiting_for_d = false;
                             } else if self.show_popup || self.show_grep_popup {
                                 self.input.push('g');
                                 self.cursor_position += 1;
@@ -94,38 +92,52 @@ impl App {
                             if self.show_popup || self.show_grep_popup {
                                 self.show_popup = false;
                                 self.show_grep_popup = false;
+                                self.find_directories = false;
+                                self.waiting_for_d = false;
                                 self.input.clear();
                                 self.cursor_position = 0;
                             }
                         }
                         KeyCode::Char(c) => {
                             if self.show_popup || self.show_grep_popup {
+                                self.waiting_for_d = false;
                                 self.input.push(c);
                                 self.cursor_position += 1;
                             }
                         }
                         KeyCode::Backspace => {
                             if (self.show_popup || self.show_grep_popup) && !self.input.is_empty() {
+                                self.waiting_for_d = false;
                                 self.input.pop();
                                 self.cursor_position = self.cursor_position.saturating_sub(1);
                             }
                         }
                         KeyCode::Left => {
                             if self.show_popup || self.show_grep_popup {
+                                self.waiting_for_d = false;
                                 self.cursor_position = self.cursor_position.saturating_sub(1);
                             }
                         }
                         KeyCode::Right => {
                             if self.show_popup || self.show_grep_popup {
+                                self.waiting_for_d = false;
                                 self.cursor_position = self.cursor_position.min(self.input.len());
                             }
                         }
                         KeyCode::Enter => {
                             if self.show_popup {
-                                let output = Command::new("find")
-                                    .arg(".")
-                                    .arg("-name")
-                                    .arg(format!("*{}*", self.input))
+                                let mut command = Command::new("find");
+                                command.arg(".");
+                                
+                                if self.find_directories {
+                                    command.arg("-type").arg("d");
+                                }
+                                
+                                if !self.input.is_empty() {
+                                    command.arg("-name").arg(format!("*{}*", self.input));
+                                }
+                                
+                                let output = command
                                     .output()
                                     .expect("Failed to execute find command");
                                 
@@ -136,6 +148,8 @@ impl App {
                                 }
                                 
                                 self.show_popup = false;
+                                self.find_directories = false;
+                                self.waiting_for_d = false;
                                 self.input.clear();
                                 self.cursor_position = 0;
                             } else if self.show_grep_popup {
@@ -159,6 +173,7 @@ impl App {
                         }
                         _ => {
                             space_pressed = false;
+                            self.waiting_for_d = false;
                         }
                     }
                 }
@@ -173,7 +188,7 @@ impl App {
         let vertical = Layout::vertical([Constraint::Percentage(20), Constraint::Percentage(80)]);
         let [instructions, content] = vertical.areas(area);
 
-        let text = "> Press Space-f for find command\n\
+        let text = "> Press Space-f(-d) for find files(-directories)\n\
                     > Press Space-g for grep command";
         let paragraph = Paragraph::new(text)
             .block(Block::default())
@@ -199,7 +214,11 @@ impl App {
             ]).split(area);
 
             // Render the input text in the middle chunk
-            let popup_type = if self.show_popup { "Find" } else { "Grep" };
+            let popup_type = if self.show_popup {
+                if self.find_directories { "Find Directories" } else { "Find Files" }
+            } else {
+                "Grep"
+            };
             let input_text = format!("{}: {}{}", 
                 popup_type,
                 self.input, 
