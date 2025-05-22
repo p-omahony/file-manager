@@ -156,6 +156,7 @@ impl App {
                             let output = Command::new("grep")
                                 .arg("-rn")
                                 .arg(&self.input)
+                                .arg("--binary-files=without-match")
                                 .arg(".")
                                 .output()
                                 .expect("grep failed");
