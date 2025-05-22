@@ -36,6 +36,7 @@ struct App {
     input: String,
     cursor_position: usize,
     results: String,
+    scroll_position: usize,
 }
 
 impl Default for App {
@@ -45,6 +46,7 @@ impl Default for App {
             input: String::new(),
             cursor_position: 0,
             results: String::new(),
+            scroll_position: 0,
         }
     }
 }
@@ -59,6 +61,26 @@ impl App {
                     match (self.mode, key.code) {
                         // Quit when in Normal mode
                         (Mode::Normal, KeyCode::Char('q')) => return Ok(()),
+
+                        // Scroll controls in Normal mode
+                        (Mode::Normal, KeyCode::Up) => {
+                            self.scroll_position = self.scroll_position.saturating_sub(1);
+                        }
+                        (Mode::Normal, KeyCode::Down) => {
+                            self.scroll_position = self.scroll_position.saturating_add(1);
+                        }
+                        (Mode::Normal, KeyCode::PageUp) => {
+                            self.scroll_position = self.scroll_position.saturating_sub(10);
+                        }
+                        (Mode::Normal, KeyCode::PageDown) => {
+                            self.scroll_position = self.scroll_position.saturating_add(10);
+                        }
+                        (Mode::Normal, KeyCode::Home) => {
+                            self.scroll_position = 0;
+                        }
+                        (Mode::Normal, KeyCode::End) => {
+                            self.scroll_position = usize::MAX;
+                        }
 
                         // Enter FindFiles mode: Space + f
                         (Mode::Normal, KeyCode::Char(' ')) => {
@@ -189,6 +211,7 @@ impl App {
 
     fn draw(&self, frame: &mut Frame) {
         let area = frame.area();
+
         let vertical = Layout::vertical([Constraint::Percentage(20), Constraint::Percentage(80)]);
         let [instructions, content] = vertical.areas(area);
 
@@ -199,8 +222,17 @@ impl App {
             instructions,
         );
 
+        // Calculate visible lines based on content height
+        let content_height = content.height as usize;
+        let visible_lines = self.results
+            .lines()
+            .skip(self.scroll_position)
+            .take(content_height)
+            .collect::<Vec<_>>()
+            .join("\n");
+
         frame.render_widget(
-            Paragraph::new(Text::from(self.results.as_str()))
+            Paragraph::new(Text::from(visible_lines))
                 .block(Block::bordered().title("Content").on_blue())
                 .wrap(Wrap { trim: true }),
             content,
