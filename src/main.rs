@@ -142,7 +142,44 @@ impl App {
                                     .expect("Failed to execute find command");
                                 
                                 if output.status.success() {
-                                    self.results = String::from_utf8_lossy(&output.stdout).to_string();
+                                    let paths = String::from_utf8_lossy(&output.stdout);
+                                    let mut results = Vec::new();
+                                    
+                                    for path in paths.lines() {
+                                        let path = path.trim();
+                                        if path.is_empty() {
+                                            continue;
+                                        }
+                                        
+                                        let size_output = if self.find_directories {
+                                            Command::new("du")
+                                                .arg("-sh")
+                                                .arg(path)
+                                                .output()
+                                        } else {
+                                            Command::new("ls")
+                                                .arg("-lh")
+                                                .arg(path)
+                                                .output()
+                                        };
+                                        
+                                        match size_output {
+                                            Ok(size_output) if size_output.status.success() => {
+                                                let output_str = String::from_utf8_lossy(&size_output.stdout);
+                                                let size_str = output_str
+                                                    .trim()
+                                                    .split_whitespace()
+                                                    .next()
+                                                    .unwrap_or("?");
+                                                results.push(format!("{} {}", size_str, path));
+                                            }
+                                            _ => {
+                                                results.push(path.to_string());
+                                            }
+                                        }
+                                    }
+                                    
+                                    self.results = results.join("\n");
                                 } else {
                                     self.results = format!("Error: {}", String::from_utf8_lossy(&output.stderr));
                                 }
