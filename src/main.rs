@@ -178,6 +178,7 @@ impl App {
                             let output = Command::new("grep")
                                 .arg("-rn")
                                 .arg("--binary-files=without-match")
+                                .arg("--exclude-dir=*env*")
                                 .arg(format!(".*{}.*", self.input))
                                 .arg(".")
                                 .output()
