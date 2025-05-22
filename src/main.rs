@@ -37,6 +37,7 @@ struct App {
     cursor_position: usize,
     results: String,
     scroll_position: usize,
+    waiting_for_f_or_d: bool,
 }
 
 impl Default for App {
@@ -47,6 +48,7 @@ impl Default for App {
             cursor_position: 0,
             results: String::new(),
             scroll_position: 0,
+            waiting_for_f_or_d: false,
         }
     }
 }
@@ -87,16 +89,21 @@ impl App {
                             // wait for next key...
                             if let Event::Key(next) = event::read()? {
                                 if next.code == KeyCode::Char('f') {
-                                    self.mode = Mode::FindFiles;
+                                    self.waiting_for_f_or_d = true;
                                 } else if next.code == KeyCode::Char('g') {
                                     self.mode = Mode::Grep;
                                 }
                             }
                         }
 
-                        // In FindFiles, hitting 'd' switches to FindDirs
-                        (Mode::FindFiles, KeyCode::Char('d')) => {
+                        // Handle f or d after space-f
+                        (Mode::Normal, KeyCode::Char('f')) if self.waiting_for_f_or_d => {
+                            self.mode = Mode::FindFiles;
+                            self.waiting_for_f_or_d = false;
+                        }
+                        (Mode::Normal, KeyCode::Char('d')) if self.waiting_for_f_or_d => {
                             self.mode = Mode::FindDirs;
+                            self.waiting_for_f_or_d = false;
                         }
 
                         // Any other char in a popup just goes into input
@@ -211,7 +218,7 @@ impl App {
         let vertical = Layout::vertical([Constraint::Percentage(20), Constraint::Percentage(80)]);
         let [instructions, content] = vertical.areas(area);
 
-        let text = "> Press Space-f(-d) for find files(-directories)\n\
+        let text = "> Press Space-f-f/d for find files/directories\n\
                     > Press Space-g for grep command";
         frame.render_widget(
             Paragraph::new(text).block(Block::default()).centered(),
@@ -230,7 +237,7 @@ impl App {
 
         frame.render_widget(
             Paragraph::new(Text::from(visible_lines))
-                .block(Block::bordered().title("Content").on_blue())
+                .block(Block::bordered().title("Results").on_blue())
                 .wrap(Wrap { trim: true }),
             content,
         );
