@@ -1,11 +1,11 @@
 use color_eyre::Result;
 use ratatui::{
+    DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyEventKind},
     layout::{Constraint, Layout, Rect},
     style::Stylize,
-    widgets::{Block, Clear, Paragraph, Wrap},
     text::Text,
-    DefaultTerminal, Frame,
+    widgets::{Block, Clear, Paragraph, Wrap},
 };
 use std::process::Command;
 
@@ -130,28 +130,23 @@ impl App {
                             self.results = if output.status.success() {
                                 let paths = String::from_utf8_lossy(&output.stdout);
                                 let mut results = Vec::new();
-                                
+
                                 for path in paths.lines() {
                                     let path = path.trim();
                                     if path.is_empty() {
                                         continue;
                                     }
-                                    
+
                                     let size_output = if self.mode == Mode::FindDirs {
-                                        Command::new("du")
-                                            .arg("-sh")
-                                            .arg(path)
-                                            .output()
+                                        Command::new("du").arg("-sh").arg(path).output()
                                     } else {
-                                        Command::new("ls")
-                                            .arg("-lh")
-                                            .arg(path)
-                                            .output()
+                                        Command::new("ls").arg("-lh").arg(path).output()
                                     };
-                                    
+
                                     match size_output {
                                         Ok(size_output) if size_output.status.success() => {
-                                            let output_str = String::from_utf8_lossy(&size_output.stdout);
+                                            let output_str =
+                                                String::from_utf8_lossy(&size_output.stdout);
                                             let size_str = output_str
                                                 .trim()
                                                 .split_whitespace()
@@ -164,7 +159,7 @@ impl App {
                                         }
                                     }
                                 }
-                                
+
                                 results.join("\n")
                             } else {
                                 format!("Error: {}", String::from_utf8_lossy(&output.stderr))
@@ -225,7 +220,8 @@ impl App {
 
         // Calculate visible lines based on content height
         let content_height = content.height as usize;
-        let visible_lines = self.results
+        let visible_lines = self
+            .results
             .lines()
             .skip(self.scroll_position)
             .take(content_height)
@@ -244,19 +240,27 @@ impl App {
             frame.render_widget(Clear, area);
             frame.render_widget(Block::bordered(), area);
 
-            let chunks = Layout::vertical([Constraint::Min(0), Constraint::Length(1), Constraint::Min(0)])
-                .split(area);
+            let chunks = Layout::vertical([
+                Constraint::Min(0),
+                Constraint::Length(1),
+                Constraint::Min(0),
+            ])
+            .split(area);
             let popup_type = match self.mode {
                 Mode::FindFiles => "Find Files",
-                Mode::FindDirs  => "Find Directories",
-                Mode::Grep      => "Grep",
+                Mode::FindDirs => "Find Directories",
+                Mode::Grep => "Grep",
                 _ => unreachable!(),
             };
             let input_text = format!(
                 "{}: {}{}",
                 popup_type,
                 self.input,
-                if self.cursor_position == self.input.len() { "█" } else { "" }
+                if self.cursor_position == self.input.len() {
+                    "█"
+                } else {
+                    ""
+                }
             );
             frame.render_widget(Paragraph::new(input_text), chunks[1]);
         }
